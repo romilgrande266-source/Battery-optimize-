@@ -34,10 +34,9 @@ jobs:
           FOUND=$(find . -name settings.gradle.kts -not -path './build-src/*' | head -n 1)
 
           if [ -z "$FOUND" ]; then
-            # Pick the ZIP with the latest code, even if older copies exist in the repo
             ZIP=""
             while IFS= read -r z; do
-              if unzip -p "$z" '*Components.kt' 2>/dev/null | grep -q POWER_USAGE_ACTION; then
+              if unzip -p "$z" '*MainActivity.kt' 2>/dev/null | grep -q 'runtime.saveable.rememberSaveable'; then
                 ZIP="$z"
                 break
               fi
