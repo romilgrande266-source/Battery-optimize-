@@ -31,10 +31,8 @@ jobs:
       - name: Find or extract the Android project
         run: |
           set -e
-          # Case 1: project already extracted somewhere in the repo
           FOUND=$(find . -name settings.gradle.kts -not -path './build-src/*' | head -n 1)
 
-          # Case 2: project is inside a ZIP in the repo
           if [ -z "$FOUND" ]; then
             ZIP=$(find . -name 'BatteryOptimizer.zip' | head -n 1)
             if [ -z "$ZIP" ]; then
@@ -65,8 +63,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Prepare Android SDK (preinstalled on runner)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
