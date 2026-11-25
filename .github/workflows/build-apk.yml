@@ -34,12 +34,22 @@ jobs:
           FOUND=$(find . -name settings.gradle.kts -not -path './build-src/*' | head -n 1)
 
           if [ -z "$FOUND" ]; then
-            ZIP=$(find . -name 'BatteryOptimizer.zip' | head -n 1)
+            # Pick the ZIP with the latest code, even if older copies exist in the repo
+            ZIP=""
+            while IFS= read -r z; do
+              if unzip -p "$z" '*Components.kt' 2>/dev/null | grep -q POWER_USAGE_ACTION; then
+                ZIP="$z"
+                break
+              fi
+            done < <(find . -name 'BatteryOptimizer*.zip')
+
             if [ -z "$ZIP" ]; then
               ZIP=$(find . -name 'BatteryOptimizer*.zip' | head -n 1)
+              echo "::warning::No ZIP with the latest code found, using $ZIP"
             fi
+
             if [ -n "$ZIP" ]; then
-              echo "Extracting $ZIP"
+              echo "Using ZIP: $ZIP"
               mkdir -p build-src
               unzip -q "$ZIP" -d build-src
               FOUND=$(find build-src -name settings.gradle.kts | head -n 1)
@@ -82,7 +92,20 @@ jobs:
 
       - name: Build ${{ matrix.abi }} APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle --no-daemon --stacktrace ${{ matrix.task }}
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace ${{ matrix.task }} 2>&1 | tee "$GITHUB_WORKSPACE/build-output.txt"
+
+      - name: Show compile errors in run summary
+        if: failure()
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/build-output.txt" ]; then
+            grep -E "^e: |^> |What went wrong|error:|FAILURE" "$GITHUB_WORKSPACE/build-output.txt" | head -40 | while IFS= read -r line; do
+              echo "::error title=Build error::$line"
+            done
+          else
+            echo "::error::Gradle produced no output"
+          fi
 
       - name: Collect and verify APK
         run: |
@@ -110,4 +133,5 @@ jobs:
           path: |
             ${{ env.PROJECT_DIR }}/app/build/reports/
             ${{ env.PROJECT_DIR }}/app/build/outputs/logs/
+            build-output.txt
           if-no-files-found: ignore
