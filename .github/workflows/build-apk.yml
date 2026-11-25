@@ -1,0 +1,96 @@
+name: Build APKs
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm32
+            task: assembleArm32Debug
+            apk: BatteryOptimizer-arm32.apk
+          - abi: arm64
+            task: assembleArm64Debug
+            apk: BatteryOptimizer-arm64.apk
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build ${{ matrix.abi }} APK
+        run: gradle --no-daemon --stacktrace ${{ matrix.task }}
+
+      - name: Collect and verify APK
+        run: |
+          SRC="app/build/outputs/apk/${{ matrix.abi }}/debug/app-${{ matrix.abi }}-debug.apk"
+          if [ ! -f "$SRC" ]; then
+            echo "::error::APK not found at $SRC"
+            find app/build/outputs -name '*.apk' || true
+            exit 1
+          fi
+          cp "$SRC" "${{ matrix.apk }}"
+          ls -lh "${{ matrix.apk }}"
+          echo "Native libraries inside the APK:"
+          unzip -l "${{ matrix.apk }}" | grep 'lib/' || echo "(none)"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.apk }}
+          path: ${{ matrix.apk }}
+          if-no-files-found: error
+
+      - name: Upload build logs and reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.abi }}
+          path: |
+            app/build/reports/
+            app/build/outputs/logs/
+          if-no-files-found: ignore
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: BatteryOptimizer-*.apk
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: BatteryOptimizer-*.apk
+          generate_release_notes: true
