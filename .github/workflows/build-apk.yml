@@ -34,18 +34,22 @@ jobs:
           FOUND=$(find . -name settings.gradle.kts -not -path './build-src/*' | head -n 1)
 
           if [ -z "$FOUND" ]; then
+            # Pick the NEWEST ZIP (highest version number, so _10 beats _9) that contains the
+            # latest code. Both ABI jobs use this same rule, so they always build the same code.
+            # The marker below exists only in the newest build, not in the older zips.
             ZIP=""
             while IFS= read -r z; do
-              if unzip -p "$z" '*MainActivity.kt' 2>/dev/null | grep -q 'runtime.saveable.rememberSaveable'; then
+              if unzip -p "$z" '*MainActivity.kt' 2>/dev/null | grep -q 'ShizukuGrant.startListeners'; then
                 ZIP="$z"
                 break
               fi
-            done < <(find . -name 'BatteryOptimizer*.zip')
+            done < <(find . -name 'BatteryOptimizer*.zip' | sort -V -r)
 
             if [ -z "$ZIP" ]; then
-              ZIP=$(find . -name 'BatteryOptimizer*.zip' | head -n 1)
+              ZIP=$(find . -name 'BatteryOptimizer*.zip' | sort -V -r | head -n 1)
               echo "::warning::No ZIP with the latest code found, using $ZIP"
             fi
+            echo "Chosen ZIP for ${{ matrix.abi }}: $ZIP"
 
             if [ -n "$ZIP" ]; then
               echo "Using ZIP: $ZIP"
