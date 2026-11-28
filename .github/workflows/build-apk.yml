@@ -39,7 +39,7 @@ jobs:
             # The marker below exists only in the newest build, not in the older zips.
             ZIP=""
             while IFS= read -r z; do
-              if unzip -p "$z" '*MainActivity.kt' 2>/dev/null | grep -q 'ShizukuGrant.startListeners'; then
+              if unzip -p "$z" '*MainActivity.kt' 2>/dev/null | grep -q 'ShizukuGrant.init'; then
                 ZIP="$z"
                 break
               fi
